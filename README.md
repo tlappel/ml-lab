@@ -93,3 +93,9 @@ python bench.py
 comments but the actual mechanism — attention, the feed-forward block, the
 residual stream — left as TODOs. Filling those in is the exercise. `train.py`
 is complete and will run the moment the model does.
+
+bf16   ~100 TFLOPS     <- use this, always
+fp16    ~65            <- 35% slower on this silicon. avoid.
+tf32    ~44            <- free 2.4x over fp32, one line
+fp32    ~18.5
+VRAM    11.9 GiB       <- the actual constraint
