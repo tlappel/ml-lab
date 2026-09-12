@@ -37,24 +37,46 @@ def device_report() -> None:
 def gpu_telemetry() -> str:
     """Power, clock and temperature straight from the driver.
 
-    torch.cuda.power_draw() only exists in some builds, so go to nvidia-smi
-    directly - it's always there if the driver is.
+    Every field is parsed independently and tolerates "[N/A]". Many laptop
+    GPUs - including this one - simply do not expose power.draw through NVML,
+    and an all-or-nothing parse threw away the clock and temperature readings
+    that WERE available. Partial telemetry beats none.
     """
+    fields = ("power.draw", "power.limit", "clocks.sm", "temperature.gpu")
     try:
         out = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=power.draw,power.limit,clocks.sm,temperature.gpu",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        ).stdout.strip()
-        draw, limit, clk, temp = (x.strip() for x in out.split(","))
-        return f"{float(draw):3.0f}/{float(limit):3.0f}W  {clk}MHz  {temp}C"
-    except Exception:
-        return "telemetry n/a"
+            ["nvidia-smi", f"--query-gpu={','.join(fields)}",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "nvidia-smi not found"
+
+    if out.returncode != 0:
+        return f"nvidia-smi failed: {out.stderr.strip()[:60]}"
+
+    vals = [v.strip() for v in out.stdout.strip().split(",")]
+    if len(vals) != len(fields):
+        return f"unparsed: {out.stdout.strip()[:60]}"
+
+    def num(v):
+        try:
+            return float(v)
+        except ValueError:
+            return None  # "[N/A]" / "[Not Supported]"
+
+    draw, limit, clk, temp = (num(v) for v in vals)
+
+    parts = []
+    if draw is not None and limit is not None:
+        parts.append(f"{draw:3.0f}/{limit:3.0f}W")
+    elif limit is not None:
+        parts.append(f"cap {limit:.0f}W")
+    if clk is not None:
+        parts.append(f"{clk:.0f}MHz")
+    if temp is not None:
+        parts.append(f"{temp:.0f}C")
+    return "  ".join(parts) if parts else "no telemetry exposed"
 
 
 def bench_matmul(n: int, dtype, iters: int) -> tuple[float, float, str]:
