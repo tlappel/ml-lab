@@ -80,16 +80,21 @@ class CausalSelfAttention(nn.Module):
 
         # TODO 1 — attention.
         #
+        # Stuck on the shapes? Run `python gpt/shapes.py` first. It walks this
+        # exact sequence with B=2, T=4, C=6, H=2 and prints every shape as it
+        # changes. In these comments, `shape:` means 'the tensor now has this
+        # shape' - it is not a Python annotation.
+        #
         # a) Project and split:
-        #        qkv = self.c_attn(x)          -> (B, T, 3C)
-        #        q, k, v = qkv.split(C, dim=2) -> three of (B, T, C)
+        #        qkv = self.c_attn(x)          shape: (B, T, 3C)
+        #        q, k, v = qkv.split(C, dim=2) shape: three of (B, T, C)
         #
         # b) Reshape each into heads and move the head dim next to batch, so
         #    every head is an independent attention problem:
         #        q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         #    giving (B, H, T, hs).
         #
-        # c) Scores: q @ k.transpose(-2, -1) -> (B, H, T, T).
+        # c) Scores: q @ k.transpose(-2, -1) shape: (B, H, T, T).
         #    Scale by 1/sqrt(hs). Without the scale, dot products grow with
         #    head size, softmax saturates, and gradients vanish. This is the
         #    "scaled" in scaled dot-product attention and it is not optional.
@@ -100,7 +105,7 @@ class CausalSelfAttention(nn.Module):
         #
         # e) Softmax over the last dim, then self.attn_dropout.
         #
-        # f) Weighted sum of values: att @ v -> (B, H, T, hs).
+        # f) Weighted sum of values: att @ v shape: (B, H, T, hs).
         #
         # g) Reassemble the heads: transpose(1, 2) then .contiguous().view(B, T, C).
         #    The .contiguous() is required — transpose only changes strides,
@@ -228,8 +233,8 @@ class GPT(nn.Module):
 
         # TODO 4 — assemble the forward pass:
         #
-        #   tok_emb = self.transformer.wte(idx)   -> (B, T, C)
-        #   pos_emb = self.transformer.wpe(pos)   -> (T, C)
+        #   tok_emb = self.transformer.wte(idx)   shape: (B, T, C)
+        #   pos_emb = self.transformer.wpe(pos)   shape: (T, C)
         #   x = self.transformer.drop(tok_emb + pos_emb)
         #
         # Note the broadcast: (B, T, C) + (T, C) adds the same positional
@@ -238,7 +243,7 @@ class GPT(nn.Module):
         #   for block in self.transformer.h:
         #       x = block(x)
         #   x = self.transformer.ln_f(x)
-        #   logits = self.lm_head(x)              -> (B, T, vocab_size)
+        #   logits = self.lm_head(x)              shape: (B, T, vocab_size)
         #
         # Then the loss, when targets are given:
         #
