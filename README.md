@@ -94,8 +94,22 @@ comments but the actual mechanism — attention, the feed-forward block, the
 residual stream — left as TODOs. Filling those in is the exercise. `train.py`
 is complete and will run the moment the model does.
 
+## Measured baselines
+
+Plugged in, best of three with 15s cooldowns, 8192x8192 matmul:
+
+```
 bf16   ~100 TFLOPS     <- use this, always
 fp16    ~65            <- 35% slower on this silicon. avoid.
 tf32    ~44            <- free 2.4x over fp32, one line
 fp32    ~18.5
 VRAM    11.9 GiB       <- the actual constraint
+```
+
+The fp16 gap is real silicon behaviour, not measurement noise. The bf16/fp16
+ratio held at 1.569, 1.551 and 1.514 across three runs spanning battery and
+wall power - a thermal artefact would not hold a constant ratio while the
+absolute numbers nearly doubled. fp16 with fp32 accumulate is rate-limited
+here; bf16 is the full-rate path. A lot of older code defaults to fp16 out of
+Volta-era habit. On this card that gives away a third of the GPU.
+
